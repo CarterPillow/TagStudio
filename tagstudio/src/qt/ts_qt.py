@@ -560,7 +560,8 @@ class QtDriver(QObject):
         self.set_macro_menu_viability()
 
         menu_bar.addMenu(file_menu)
-        menu_bar.addMenu(edit_menu)
+        if self.inLib:
+            menu_bar.addMenu(edit_menu)
         menu_bar.addMenu(tools_menu)
         menu_bar.addMenu(macros_menu)
         menu_bar.addMenu(window_menu)
