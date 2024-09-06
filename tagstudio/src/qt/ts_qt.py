@@ -124,6 +124,7 @@ class NavigationState:
         self.search_text = search_text
         self.thumb_size = thumb_size
         self.spacing = spacing
+        
 
 
 class Consumer(QThread):
@@ -174,6 +175,8 @@ class QtDriver(QObject):
         self.cur_frame_idx: int = -1
 
         self.search_mode = SearchMode.AND
+
+        self.inLib = False
 
         # self.main_window = None
         # self.main_window = Ui_MainWindow()
@@ -227,6 +230,8 @@ class QtDriver(QObject):
         )
         if dir not in (None, ""):
             self.open_library(Path(dir))
+        self.inLib = True
+        self.draw_menu_bar()
 
     def signal_handler(self, sig, frame):
         if sig in (SIGINT, SIGTERM, SIGQUIT):
@@ -297,6 +302,58 @@ class QtDriver(QObject):
         self.main_window.setMenuBar(menu_bar)
         menu_bar.setNativeMenuBar(True)
 
+        self.draw_menu_bar()
+
+        self.preview_panel = PreviewPanel(self.lib, self)
+        l: QHBoxLayout = self.main_window.splitter
+        l.addWidget(self.preview_panel)
+
+        QFontDatabase.addApplicationFont(
+            str(Path(__file__).parents[2] / "resources/qt/fonts/Oxanium-Bold.ttf")
+        )
+
+        self.thumb_size = 128
+        self.max_results = 500
+        self.item_thumbs: list[ItemThumb] = []
+        self.thumb_renderers: list[ThumbRenderer] = []
+        self.collation_thumb_size = math.ceil(self.thumb_size * 2)
+
+        self.init_library_window()
+
+        lib = None
+        if self.args.open:
+            lib = self.args.open
+        elif self.settings.value(SettingItems.START_LOAD_LAST, True, type=bool):
+            lib = self.settings.value(SettingItems.LAST_LIBRARY)
+            # TODO: Remove this check if the library is no longer saved with files
+            if lib and not (Path(lib) / TS_FOLDER_NAME).exists():
+                logging.error(
+                    f"[QT DRIVER] {TS_FOLDER_NAME} folder in {lib} does not exist."
+                )
+                self.settings.setValue(SettingItems.LAST_LIBRARY, "")
+                lib = None
+            
+
+        if lib:
+            self.splash.showMessage(
+                f'Opening Library "{lib}"...',
+                int(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter),
+                QColor("#9782ff"),
+            )
+            self.open_library(Path(lib))
+            self.inLib = True
+            self.draw_menu_bar()
+
+        if self.args.ci:
+            # gracefully terminate the app in CI environment
+            self.thumb_job_queue.put((self.SIGTERM.emit, []))
+
+        app.exec()
+
+        self.shutdown()
+    def draw_menu_bar(self):
+        menu_bar = self.main_window.menuBar()
+        menu_bar.clear()
         file_menu = QMenu("&File", menu_bar)
         edit_menu = QMenu("&Edit", menu_bar)
         tools_menu = QMenu("&Tools", menu_bar)
@@ -318,7 +375,7 @@ class QtDriver(QObject):
         )
         open_library_action.setToolTip("Ctrl+O")
         file_menu.addAction(open_library_action)
-
+        
         save_library_action = QAction("&Save Library", menu_bar)
         save_library_action.triggered.connect(
             lambda: self.callback_library_needed_check(self.save_library)
@@ -367,10 +424,11 @@ class QtDriver(QObject):
         file_menu.addAction(add_new_files_action)
 
         file_menu.addSeparator()
+        if self.inLib:
+            close_library_action = QAction("&Close Library", menu_bar)
+            close_library_action.triggered.connect(lambda: self.close_library())
 
-        close_library_action = QAction("&Close Library", menu_bar)
-        close_library_action.triggered.connect(lambda: self.close_library())
-        file_menu.addAction(close_library_action)
+            file_menu.addAction(close_library_action)
 
         # Edit Menu ============================================================
         new_tag_action = QAction("New &Tag", menu_bar)
@@ -505,53 +563,6 @@ class QtDriver(QObject):
         menu_bar.addMenu(macros_menu)
         menu_bar.addMenu(window_menu)
         menu_bar.addMenu(help_menu)
-
-        self.preview_panel = PreviewPanel(self.lib, self)
-        l: QHBoxLayout = self.main_window.splitter
-        l.addWidget(self.preview_panel)
-
-        QFontDatabase.addApplicationFont(
-            str(Path(__file__).parents[2] / "resources/qt/fonts/Oxanium-Bold.ttf")
-        )
-
-        self.thumb_size = 128
-        self.max_results = 500
-        self.item_thumbs: list[ItemThumb] = []
-        self.thumb_renderers: list[ThumbRenderer] = []
-        self.collation_thumb_size = math.ceil(self.thumb_size * 2)
-
-        self.init_library_window()
-
-        lib = None
-        if self.args.open:
-            lib = self.args.open
-        elif self.settings.value(SettingItems.START_LOAD_LAST, True, type=bool):
-            lib = self.settings.value(SettingItems.LAST_LIBRARY)
-
-            # TODO: Remove this check if the library is no longer saved with files
-            if lib and not (Path(lib) / TS_FOLDER_NAME).exists():
-                logging.error(
-                    f"[QT DRIVER] {TS_FOLDER_NAME} folder in {lib} does not exist."
-                )
-                self.settings.setValue(SettingItems.LAST_LIBRARY, "")
-                lib = None
-
-        if lib:
-            self.splash.showMessage(
-                f'Opening Library "{lib}"...',
-                int(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter),
-                QColor("#9782ff"),
-            )
-            self.open_library(Path(lib))
-
-        if self.args.ci:
-            # gracefully terminate the app in CI environment
-            self.thumb_job_queue.put((self.SIGTERM.emit, []))
-
-        app.exec()
-
-        self.shutdown()
-
     def init_library_window(self):
         # self._init_landing_page() # Taken care of inside the widget now
         self._init_thumb_grid()
@@ -701,6 +712,8 @@ class QtDriver(QObject):
             self.main_window.statusbar.showMessage(
                 f"Library Saved and Closed! ({format_timespan(end_time - start_time)})"
             )
+            self.inLib = False
+            self.draw_menu_bar()
 
     def backup_library(self):
         logging.info(f"Backing Up Library...")
@@ -1469,6 +1482,7 @@ class QtDriver(QObject):
         self.preview_panel.update_widgets()
         self.filter_items()
         self.main_window.toggle_landing_page(False)
+        
 
     def create_collage(self) -> None:
         """Generates and saves an image collage based on Library Entries."""
