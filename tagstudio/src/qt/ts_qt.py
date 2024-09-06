@@ -176,7 +176,7 @@ class QtDriver(QObject):
 
         self.search_mode = SearchMode.AND
 
-        self.inLib = False
+        self.in_lib = False
 
         # self.main_window = None
         # self.main_window = Ui_MainWindow()
@@ -230,7 +230,7 @@ class QtDriver(QObject):
         )
         if dir not in (None, ""):
             self.open_library(Path(dir))
-        self.inLib = True
+        self.in_lib = True
         self.draw_menu_bar()
 
     def signal_handler(self, sig, frame):
@@ -341,7 +341,7 @@ class QtDriver(QObject):
                 QColor("#9782ff"),
             )
             self.open_library(Path(lib))
-            self.inLib = True
+            self.in_lib = True
             self.draw_menu_bar()
 
         if self.args.ci:
@@ -375,7 +375,7 @@ class QtDriver(QObject):
         )
         open_library_action.setToolTip("Ctrl+O")
         file_menu.addAction(open_library_action)
-        if self.inLib:
+        if self.in_lib:
             save_library_action = QAction("&Save Library", menu_bar)
             save_library_action.triggered.connect(
                 lambda: self.callback_library_needed_check(self.save_library)
@@ -389,7 +389,7 @@ class QtDriver(QObject):
             save_library_action.setStatusTip("Ctrl+S")
             file_menu.addAction(save_library_action)
 
-        if self.inLib:
+        if self.in_lib:
             save_library_backup_action = QAction("&Save Library Backup", menu_bar)
             save_library_backup_action.triggered.connect(
                 lambda: self.callback_library_needed_check(self.backup_library)
@@ -410,7 +410,7 @@ class QtDriver(QObject):
 
         # refresh_lib_action = QAction('&Refresh Directories', self.main_window)
         # refresh_lib_action.triggered.connect(lambda: self.lib.refresh_dir())
-        if self.inLib:
+        if self.in_lib:
             add_new_files_action = QAction("&Refresh Directories", menu_bar)
             add_new_files_action.triggered.connect(
                 lambda: self.callback_library_needed_check(self.add_new_files_callback)
@@ -426,7 +426,7 @@ class QtDriver(QObject):
             file_menu.addAction(add_new_files_action)
 
         file_menu.addSeparator()
-        if self.inLib:
+        if self.in_lib:
             close_library_action = QAction("&Close Library", menu_bar)
             close_library_action.triggered.connect(lambda: self.close_library())
 
@@ -560,7 +560,7 @@ class QtDriver(QObject):
         self.set_macro_menu_viability()
 
         menu_bar.addMenu(file_menu)
-        if self.inLib:
+        if self.in_lib:
             menu_bar.addMenu(edit_menu)
         menu_bar.addMenu(tools_menu)
         menu_bar.addMenu(macros_menu)
@@ -715,7 +715,7 @@ class QtDriver(QObject):
             self.main_window.statusbar.showMessage(
                 f"Library Saved and Closed! ({format_timespan(end_time - start_time)})"
             )
-            self.inLib = False
+            self.in_lib = False
             self.draw_menu_bar()
 
     def backup_library(self):
